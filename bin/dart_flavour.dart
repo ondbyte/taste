@@ -1,100 +1,160 @@
 import 'dart:convert';
 import 'dart:io';
 
-void main(List<String> arguments) async {
-  try {
-    final first = arguments.first;
-    await _do(first);
-  } on Exception catch (e) {
-    _exit(e.toString());
+const keywordHelp = "help";
+const kJsonFilePath = "/flavors/flavors.json";
+const kOriginalFilesKey = "files_to_flavorize";
+const keywordInit = "init";
+
+Future main(List<String> args) async {
+  if (args.isEmpty || args.first.isEmpty) {
+    _help();
   }
-}
+  final arg = args.first.toLowerCase();
+  if (arg == keywordHelp) {
+    _help();
+  }
+  if (arg == keywordInit) {
+    await _writeFlavorFileWithDemoFiles();
+    _exit("initialized flavors for ${Directory.current.path}");
+  }
+  final jsonMap = await _readFlavorFile();
+  if (jsonMap.containsKey(kOriginalFilesKey)) {
+    final files_to_flavorize_map = jsonMap[kOriginalFilesKey];
+    if (files_to_flavorize_map is Map) {
+      try {
+        final files_to_flavorize = files_to_flavorize_map
+            .map((key, value) => MapEntry(key as String, value as String));
 
-Future _do(String arg) async {
-  final currentDir = Directory.current.absolute;
-  final fileName = "flavor.json";
-  final file = File("${currentDir.path}/$fileName");
-
-  final fileData = await file.readAsString();
-  final map = jsonDecode(fileData);
-
-  if (map is Map) {
-    if (map.containsKey(arg)) {
-      final filesToBeReplaced = map[arg];
-      if (filesToBeReplaced is List) {
-        if (filesToBeReplaced.isNotEmpty) {
-          if (map.containsKey("files_to_flavorize")) {
-            final files = map["files_to_flavorize"];
-            if(files is List){
-              if(files.isNotEmpty){
-                _validate(files);
-                _validate(filesToBeReplaced);
-                _replace(files,filesToBeReplaced);
-              } else {
-                throw Exception("'files_to_flavorize' value is empty");
+        if (files_to_flavorize.isNotEmpty) {
+          if (jsonMap.containsKey(arg)) {
+            final fMap = jsonMap[arg];
+            if (fMap is Map) {
+              try {
+                final sMap = fMap.map(
+                    (key, value) => MapEntry(key as String, value as String));
+                final flavor = Flavor(arg, sMap);
+                await flavor.swapFiles(files_to_flavorize);
+              } catch (e, s) {
+                print(e);
+                print(s);
+                _exit(
+                    "given flavor $arg is not well formatted in the $kJsonFilePath, keys and values must be strings");
               }
             } else {
-              throw Exception("'files_to_flavorize' value is not a List");
+              _exit(
+                  "given flavor $arg is not well formatted in the $kJsonFilePath");
             }
           } else {
-            throw Exception("'files_to_flavorize' key isn't declared in flovor.json");
+            _exit("given flavor doesn't exists");
           }
         } else {
-          throw Exception("Given flavor is empty");
+          _exit("no files to flavorize");
         }
-      } else {
-        throw Exception("Given flavor $arg is not well formatted json");
+      } catch (e) {
+        _exit(
+          "$kOriginalFilesKey is not formatted well in the file $kJsonFilePath",
+        );
       }
     } else {
-      throw Exception("Given flavor $arg doesn't in flavor.json");
+      _exit(
+        "$kOriginalFilesKey is not formatted well in the file $kJsonFilePath",
+      );
     }
   } else {
-    _exit("flavor.json is not well formatted");
-    return;
+    _exit(
+        "$kJsonFilePath doesn't contain a mandatory key 'files_to_flavorize'");
   }
 }
 
-void _replace(List<String> files,List<String> filesToBeReplaced) async {
-  if(files.length!=filesToBeReplaced.length){
-    _exit("files_to_flavorize and the the given flavor should have same length");
-    return;
-  }
-  for(var i=0;i<files.length;i++){
-    final done = await _switchFiles(files[i],filesToBeReplaced[i]);
-    if(done){
-      print("switched ${files[i]} with ${filesToBeReplaced[i]}");
+Future<Map<String, dynamic>> _readFlavorFile() async {
+  Map<String, dynamic> map;
+  try {
+    final flavorFile = File(_absolutizePath(kJsonFilePath));
+    if (flavorFile.existsSync()) {
+      final data = await flavorFile.readAsString();
+      map = jsonDecode(data);
     } else {
-      print("unable to switch ${files[i]} with ${filesToBeReplaced[i]},continuing");
+      _exit(
+          "$kJsonFilePath doesn't exists, might be its your first run, run with init argument to initialize");
     }
+  } catch (e) {
+    _exit("unable to read $kJsonFilePath, make sure it exists,");
   }
-}
-
-Future<bool> _switchFiles(original,update) async {
-  final uFile = File(update);
-  if(await uFile.exists()){    
-    try{
-      await File(original).writeAsBytes(await uFile.readAsBytes());
-      return true;
-    } catch (e){
-      _exit("unable to write file $original");
-      return false;
-    }
+  if (map is Map) {
+    return map;
   } else {
-    _exit("File '$update' doesn't exists");
-    return false;
+    _exit("$kJsonFilePath is not well formatted");
   }
 }
 
-String _validate(List list){
-  for (final l in list){
-    if(l is! String){
-      _exit("files contain non string values");
-      break;
-    }
+Future _writeFlavorFileWithDemoFiles() async {
+  try {
+    final flavorFile = File(_absolutizePath("/flavors/flavors.json"));
+    await (await File(_absolutizePath("/flavors/demo.txt"))
+            .create(recursive: true))
+        .writeAsString("original file");
+    await (await File(
+      _absolutizePath("/flavors/demo_flavor_one.txt"),
+    ).create(recursive: true))
+        .writeAsString("flavor one file");
+    await (await File(
+      _absolutizePath("/flavors/demo_flavor_two.txt"),
+    ).create(recursive: true))
+        .writeAsString("flavor two file");
+    await flavorFile.create(recursive: true);
+    await flavorFile.writeAsString(
+        '''{\r\n  \"files_to_flavorize\": {\r\n    \"demo_file\":\".\/flavors\/demo.txt\"\r\n  },\r\n  \"flavor_one\":{\r\n    \"demo_file\":\".\/flavors\/demo_flavor_one.txt\"\r\n  },\r\n  \"flavor_two\":{\r\n    \"demo_file\":\".\/flavors\/demo_flavor_two.txt\"\r\n  }\r\n}''');
+  } catch (e, s) {
+    print(e);
+    print(s);
+    _exit("error writing files");
   }
+}
+
+void _help() {
+  _exit("showing help.");
 }
 
 void _exit(String s) {
   print(s);
   exit(0);
+}
+
+class Flavor {
+  final String name;
+  final Map<String, String> files;
+
+  Flavor(this.name, this.files);
+
+  Future swapFiles(Map<String, String> files_to_flavorize) async {
+    if (files_to_flavorize == null || files_to_flavorize.isEmpty) {
+      _exit("'$kOriginalFilesKey' is empty in $kJsonFilePath");
+    }
+    for (var i = 0; i < files_to_flavorize.length; i++) {
+      final key = files_to_flavorize.keys.elementAt(i);
+      final value = files_to_flavorize.values.elementAt(i);
+      if (files.containsKey(key)) {
+        final replace = files[key];
+        final replaceFile = File(replace);
+        final toReplaceFile = File(value);
+        if (await replaceFile.exists()) {
+          try {
+            await toReplaceFile.writeAsBytes(await replaceFile.readAsBytes());
+            print("replaced $key with new one from flavor $name");
+          } catch (e) {
+            print("unable to write file ${toReplaceFile.path}");
+          }
+        } else {
+          print("file $key doesn't exist at path ${replaceFile.path} for flavor $name");
+        }
+      } else {
+        print("flavor $name isn't applicable to file $key");
+      }
+    }
+  }
+}
+
+String _absolutizePath(String path) {
+  return Directory.current.path + "$path";
 }
