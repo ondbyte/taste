@@ -8,13 +8,11 @@ const keywordInit = "init";
 
 Future main(List<String> args) async {
   if (args.isEmpty || args.first.isEmpty) {
-    await _checkInit();
-    await _help();
+    await _help(await _checkInit());
   }
   final arg = args.first.toLowerCase();
   if (arg == keywordHelp) {
-    await _checkInit();
-    await _help();
+    await _help(await _checkInit());
   }
   if (arg == keywordInit) {
     final initialized = await _checkInit();
@@ -119,17 +117,17 @@ Future _writeFlavorFileWithDemoFiles() async {
   }
 }
 
-void _help() async {
+void _help(bool initialized) async {
+  if (initialized) {
+    print(
+      "run 'taste init' at the root of a project to initialize flavorization for the project",
+    );
+  }
   _exit("go here for online guide>>");
 }
 
 Future<bool> _checkInit() async {
   final initialized = await File(_absolutizePath("$kJsonFilePath")).exists();
-  if (!initialized) {
-    print(
-      "run 'taste init' at the root of a project to initialize flavorization for the project",
-    );
-  }
   return initialized;
 }
 
