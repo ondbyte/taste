@@ -112,8 +112,14 @@ Future _writeFlavorFileWithDemoFiles() async {
   }
 }
 
-void _help() {
-  _exit("showing help.");
+void _help() async {
+  final initialized = await File(_absolutizePath("$kJsonFilePath")).exists();
+  if (!initialized) {
+    print(
+      "run 'taste init' at the root of a project to initialize flavorization for the project",
+    );
+  }
+  _exit("go here for online guide>>");
 }
 
 void _exit(String s) {
@@ -146,7 +152,8 @@ class Flavor {
             print("unable to write file ${toReplaceFile.path}");
           }
         } else {
-          print("file $key doesn't exist at path ${replaceFile.path} for flavor $name");
+          print(
+              "file $key doesn't exist at path ${replaceFile.path} for flavor $name");
         }
       } else {
         print("flavor $name isn't applicable to file $key");
