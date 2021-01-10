@@ -8,15 +8,22 @@ const keywordInit = "init";
 
 Future main(List<String> args) async {
   if (args.isEmpty || args.first.isEmpty) {
+    await _checkInit();
     await _help();
   }
   final arg = args.first.toLowerCase();
   if (arg == keywordHelp) {
+    await _checkInit();
     await _help();
   }
   if (arg == keywordInit) {
-    await _writeFlavorFileWithDemoFiles();
-    _exit("initialized flavors for ${Directory.current.path}");
+    final initialized = await _checkInit();
+    if (!initialized) {
+      await _writeFlavorFileWithDemoFiles();
+      _exit("initialized flavors for ${Directory.current.path}");
+    } else {
+      _exit("flavorization already exists for ${Directory.current.path}");
+    }
   }
   final jsonMap = await _readFlavorFile();
   if (jsonMap.containsKey(kOriginalFilesKey)) {
@@ -113,13 +120,17 @@ Future _writeFlavorFileWithDemoFiles() async {
 }
 
 void _help() async {
+  _exit("go here for online guide>>");
+}
+
+Future<bool> _checkInit() async {
   final initialized = await File(_absolutizePath("$kJsonFilePath")).exists();
   if (!initialized) {
     print(
       "run 'taste init' at the root of a project to initialize flavorization for the project",
     );
   }
-  _exit("go here for online guide>>");
+  return initialized;
 }
 
 void _exit(String s) {
