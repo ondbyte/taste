@@ -8,11 +8,11 @@ const keywordInit = "init";
 
 Future main(List<String> args) async {
   if (args.isEmpty || args.first.isEmpty) {
-    _help();
+    await _help();
   }
   final arg = args.first.toLowerCase();
   if (arg == keywordHelp) {
-    _help();
+    await _help();
   }
   if (arg == keywordInit) {
     await _writeFlavorFileWithDemoFiles();
