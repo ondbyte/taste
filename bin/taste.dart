@@ -118,7 +118,7 @@ Future _writeFlavorFileWithDemoFiles() async {
 }
 
 void _help(bool initialized) async {
-  if (initialized) {
+  if (!initialized) {
     print(
       "run 'taste init' at the root of a project to initialize flavorization for the project",
     );
